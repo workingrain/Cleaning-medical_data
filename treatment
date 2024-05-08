@@ -1,0 +1,183 @@
+#this part was included in the detection since it is important to do the reexpression first
+#convert children, age, income and initial days into numeric 
+#round initial days
+medical_raw_data$Children <- as.numeric(medical_raw_data$Children)
+medical_raw_data$Age <- as.numeric(na.omit(medical_raw_data$Age))
+medical_raw_data$Income <- as.numeric(na.omit(medical_raw_data$Income))
+medical_raw_data$Initial_days <- as.numeric(na.omit(medical_raw_data$Initial_days))
+medical_raw_data$Initial_days <- round(medical_raw_data$Initial_days)
+
+#convert into numeric
+install.packages("plyr")
+library(plyr)
+
+medical_raw_data$Soft_drink <- as.numeric(revalue(medical_raw_data$Soft_drink, c("Yes" = 1, "No" = 0, "NA" = NA)))
+medical_raw_data$HighBlood <- as.numeric(revalue(medical_raw_data$HighBlood, c("Yes" = 1, "No" = 0, "NA" = NA)))
+medical_raw_data$Stroke <- as.numeric(revalue(medical_raw_data$Stroke, c("Yes" = 1, "No" = 0, "NA" = NA)))
+medical_raw_data$Complication_risk <- factor(medical_raw_data$Complication_risk, levels = c("Low", "Medium", "High"))
+medical_raw_data$Overweight <- as.numeric(medical_raw_data$Overweight)
+medical_raw_data$Arthritis <- as.numeric(revalue(medical_raw_data$Arthritis, c("Yes" = 1, "No" = 0, "NA" = NA)))
+medical_raw_data$Diabetes <- as.numeric(revalue(medical_raw_data$Diabetes, c("Yes" = 1, "No" = 0, "NA" = NA)))
+medical_raw_data$Hyperlipidemia <- as.numeric(revalue(medical_raw_data$Hyperlipidemia, c("Yes" = 1, "No" = 0, "NA" = NA)))
+medical_raw_data$BackPain <- as.numeric(revalue(medical_raw_data$BackPain, c("Yes" = 1, "No" = 0, "NA" = NA)))
+medical_raw_data$Anxiety <- as.numeric(medical_raw_data$Anxiety)
+medical_raw_data$Allergic_rhinitis <- as.numeric(revalue(medical_raw_data$Allergic_rhinitis, c("Yes" = 1, "No" = 0, "NA" = NA)))
+medical_raw_data$Reflux_esophagitis <- as.numeric(revalue(medical_raw_data$Reflux_esophagitis, c("Yes" = 1, "No" = 0, "NA" = NA)))
+medical_raw_data$Asthma <- as.numeric(revalue(medical_raw_data$Asthma, c("Yes" = 1, "No" = 0, "NA" = NA)))
+
+########################################
+#Impute the missing data
+#Treat missing values using the imputation model and using a set of selected predictor variables
+install.packages("mice")
+
+#Impute children by using marital, age, employment
+library(mice)
+imputation_vars_children <- c("Children", "Marital", "Age", "Employment")
+imputation_model_children <- mice(medical_raw_data[imputation_vars_children], method = "pmm")
+imputed_data_children <- complete(imputation_model_children)
+medical_raw_data$Children <- imputed_data_children$Children
+
+#Impute soft drink by using age, diabetes, overweight
+imputation_vars_soft_drink <- c("Soft_drink", "Age", "Diabetes", "Overweight")
+imputation_model_soft_drink <- mice(medical_raw_data[imputation_vars_soft_drink], method = "pmm")
+imputed_data_soft_drink <- complete(imputation_model_soft_drink)
+medical_raw_data$Soft_drink <- imputed_data_soft_drink$Soft_drink
+
+#Impute income by using education, employment, age, marital, children
+imputation_vars_income <- c("Income", "Education", "Employment", "Age", "Marital", "Children")
+imputation_model_income <- mice(medical_raw_data[imputation_vars_income], method = "pmm")
+imputed_data_income <- complete(imputation_model_income)
+medical_raw_data$Income <- imputed_data_income$Income
+
+#Impute age using education, employment, income, marital, children 
+imputation_vars_age <- c("Age", "Education", "Employment", "Income", "Marital", "Children")
+imputation_model_age <- mice(medical_raw_data[imputation_vars_age], method = "pmm")
+imputed_data_age <- complete(imputation_model_age)
+medical_raw_data$Age <- imputed_data_age$Age
+
+#Impute initial days using initial admin, doc visits, services, high blood, diabetes
+imputation_vars_initial_days <- c("Initial_days", "Initial_admin", "Doc_visits", "Services", "HighBlood", "Diabetes")
+imputation_model_initial_days <- mice(medical_raw_data[imputation_vars_initial_days], method = "pmm")
+imputed_data_initial_days <- complete(imputation_model_initial_days)
+medical_raw_data$Initial_days <- imputed_data_initial_days$Initial_days
+
+#Impute anxiety using age, gender, income, education, services
+imputation_vars_anxiety <- c("Anxiety", "Age", "Gender", "Income", "Education", "Services")
+imputation_model_anxiety <- mice(medical_raw_data[imputation_vars_anxiety], method = "pmm")
+imputed_data_anxiety <- complete(imputation_model_anxiety)
+medical_raw_data$Anxiety <- imputed_data_anxiety$Anxiety
+
+#Impute overweight using age, gender, high blood, diabetes, hyperlipidimia, arthritis, back pain, asthma, soft drink
+imputation_vars_overweight <- c("Overweight" ,"Age", "Gender", "HighBlood", "Diabetes", "Hyperlipidemia", "Arthritis", "BackPain", "Asthma", "Soft_drink")
+imputation_model_overweight <- mice(medical_raw_data[imputation_vars_overweight], method = "pmm")
+imputed_data_overweight <- complete(imputation_model_overweight)
+medical_raw_data$Overweight <- imputed_data_overweight$Overweight
+
+#########################################
+
+#Treat outliers using winsorization
+
+install.packages("dplyr")
+library(dplyr)
+
+#Choose percentile for population 
+lower_limit <- quantile(medical_raw_data$Population, 0.09)  # 9th percentile
+upper_limit <- quantile(medical_raw_data$Population, 0.91)  # 91st percentile
+#Winsorize the 'Population' variable
+medical_raw_data <- medical_raw_data %>%
+  mutate(Population_winsorized = ifelse(Population < lower_limit, lower_limit, ifelse(Population > upper_limit, upper_limit, Population)))
+#Display the summary statistics and boxplot of the Winsorized population variable
+summary(medical_raw_data$Population_winsorized)
+boxplot(medical_raw_data$Population_winsorized, outline = TRUE, main = "Box Plot of Population (winsorized)", ylab = "Population")
+medical_raw_data$Population_winsorized <- round(medical_raw_data$Population_winsorized)
+
+#Choose percentile for children
+lower_limit <- quantile(medical_raw_data$Children, 0.06)  # 6th percentile
+upper_limit <- quantile(medical_raw_data$Children, 0.94)  # 94th percentile
+#Winsorize the 'Children' variable
+medical_raw_data <- medical_raw_data %>%
+  mutate(Children_winsorized = ifelse(Children < lower_limit, lower_limit, ifelse(Children > upper_limit, upper_limit, Children)))
+#Display the summary statistics and boxplot of the Winsorized children variable
+summary(medical_raw_data$Children_winsorized)
+boxplot(medical_raw_data$Children_winsorized, outline = TRUE, main = "Box Plot of Children (winsorized)", ylab = "Children")
+
+#Choose percentile for income
+lower_limit <- quantile(medical_raw_data$Income, 0.04)  # 4th percentile
+upper_limit <- quantile(medical_raw_data$Income, 0.96)  # 96th percentile
+#Winsorize the 'income' variable
+medical_raw_data <- medical_raw_data %>%
+  mutate(Income_winsorized = ifelse(Income < lower_limit, lower_limit, ifelse(Income > upper_limit, upper_limit, Income)))
+#Display the summary statistics and boxplot of the Winsorized income variable
+summary(medical_raw_data$Income_winsorized)
+boxplot(medical_raw_data$Income_winsorized, outline = TRUE, main = "Box Plot of Income (winsorized)", ylab = "Income")
+
+#Choose percentile for vit d supp
+lower_limit <- quantile(medical_raw_data$VitD_supp, 0.01)  # 1st percentile
+upper_limit <- quantile(medical_raw_data$VitD_supp, 0.99)  # 99th percentile
+# Winsorize the 'VitD_supp' variable
+medical_raw_data <- medical_raw_data %>%
+  mutate(VitD_supp_winsorized = ifelse(VitD_supp < lower_limit, lower_limit, ifelse(VitD_supp > upper_limit, upper_limit, VitD_supp)))
+# Display the summary statistics and boxplot of the Winsorized variable
+summary(medical_raw_data$VitD_supp_winsorized)
+boxplot(medical_raw_data$VitD_supp_winsorized, outline = TRUE, main = "Box Plot of Vitamin D supplement (winsorized)", ylab = "VitD_supp")
+
+#Choose percentile for Vit d levels
+lower_limit <- quantile(medical_raw_data$VitD_levels, 0.06)  # 6th percentile
+upper_limit <- quantile(medical_raw_data$VitD_levels, 0.94)  # 94th percentile
+#Winsorize the 'VitD_levels' variable
+medical_raw_data <- medical_raw_data %>%
+  mutate(VitD_levels_winsorized = ifelse(VitD_levels < lower_limit, lower_limit, ifelse(VitD_levels > upper_limit, upper_limit, VitD_levels)))
+#Display the summary statistics and boxplot of the Winsorized variable
+summary(medical_raw_data$VitD_levels_winsorized)
+boxplot(medical_raw_data$VitD_levels_winsorized, outline = TRUE, main = "Box Plot of Vitamin D levels (winsorized)", ylab = "VitD_levels")
+
+#Choose the percentile for total charge
+lower_limit <- quantile(medical_raw_data$TotalCharge, 0.05)  # 5th percentile
+upper_limit <- quantile(medical_raw_data$TotalCharge, 0.95)  # 95th percentile
+#Winsorize the 'TotalCharge' variable
+medical_raw_data <- medical_raw_data %>%
+  mutate(TotalCharge_winsorized = ifelse(TotalCharge < lower_limit, lower_limit, ifelse(TotalCharge > upper_limit, upper_limit, TotalCharge)))
+#Display the summary statistics and boxplot of the Winsorized variable
+summary(medical_raw_data$TotalCharge_winsorized)
+boxplot(medical_raw_data$TotalCharge_winsorized, outline = TRUE, main = "Box Plot of Total Charge (winsorized)", ylab = "TotalCharge")
+
+#Choose percentile for additional charges
+lower_limit <- quantile(medical_raw_data$Additional_charges, 0.05)  # 5th percentile
+upper_limit <- quantile(medical_raw_data$Additional_charges, 0.95)  # 95th percentile
+#Winsorize the 'Additional_charges' variable
+medical_raw_data <- medical_raw_data %>%
+  mutate(Additional_charges_winsorized = ifelse(Additional_charges < lower_limit, lower_limit, ifelse(Additional_charges > upper_limit, upper_limit, Additional_charges)))
+#Display the summary statistics of the Winsorized variable
+summary(medical_raw_data$Additional_charges_winsorized)
+boxplot(medical_raw_data$Additional_charges_winsorized, outline = TRUE, main = "Box Plot of Additional Charges (winsorized)", ylab = "Additional_charges")
+
+#Count how many outliers for each variable using the Interquartile method
+count_outliers <- function(x) {
+  q1 <- quantile(x, 0.25, na.rm = TRUE)
+  q3 <- quantile(x, 0.75, na.rm = TRUE)
+  iqr <- q3 - q1
+  lower_bound <- q1 - 1.5 * iqr
+  upper_bound <- q3 + 1.5 * iqr
+  
+  outliers <- sum(x < lower_bound | x > upper_bound, na.rm = TRUE)
+  return(outliers)
+}
+
+#List of variables for which you want to count outliers
+variables_of_interest <- c("Population_winsorized", "Children_winsorized", "income_winsorized",
+                           "VitD_supp_winsorized", "VitD_levels_winsorized", "TotalCharge_winsorized",
+                           "Additional_charges_winsorized")
+outlier_counts <- data.frame(Variable = variables_of_interest, Count = numeric(length(variables_of_interest)))
+
+#Loop through each variable
+for (i in seq_along(variables_of_interest)) {
+  variable <- variables_of_interest[i]
+  outlier_counts$Count[i] <- count_outliers(medical_raw_data[[variable]])
+}
+
+#Print or inspect the outlier counts
+print(outlier_counts)
+
+########################################
+#Export data as .csv
+write.csv(medical_raw_data, "C:/Users/kolgi/OneDrive/Documents/rraneses_d206/cleaned_medical_data.csv", row.names = TRUE)
